@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CO₂ Emission Estimator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #eef1ee;
+    --panel: #fbfcfb;
+    --ink: #13201f;
+    --ink-soft: #5a6a68;
+    --line: #cfd8d4;
+    --petrol: #0f3d3e;
+    --petrol-hover: #0b2e2f;
+    --amber: #f2a900;
+    --err: #a02c2c;
+    --display: "Bricolage Grotesque", "Segoe UI", Arial, sans-serif;
+    --body: "IBM Plex Sans", "Segoe UI", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 40px 24px 56px; }
+
+  header { margin-bottom: 32px; max-width: 640px; }
+  h1 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(2rem, 5vw, 3.2rem);
+    line-height: 1.05;
+    letter-spacing: -0.02em;
+    margin: 0 0 12px;
+    color: var(--petrol);
+  }
+  header p { margin: 0; color: var(--ink-soft); font-size: 1.05rem; }
+
+  .grid { display: grid; grid-template-columns: 1.15fr 1fr; gap: 24px; align-items: start; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 28px;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0 0 4px;
+  }
+  .hint { color: var(--ink-soft); font-size: .9rem; margin: 0 0 22px; }
+
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 18px; }
+  @media (max-width: 520px) { .fields { grid-template-columns: 1fr; } }
+  .full { grid-column: 1 / -1; }
+
+  label { display: block; font-size: .85rem; font-weight: 600; margin-bottom: 6px; }
+  label small { font-weight: 400; color: var(--ink-soft); }
+  select, input {
+    width: 100%;
+    font: inherit;
+    color: var(--ink);
+    background: #fff;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 10px 12px;
+    min-height: 44px;
+  }
+  select:disabled { background: #f0f3f1; color: var(--ink-soft); }
+  select:required:invalid { color: #8a9694; }
+  select option { color: var(--ink); }
+  input::placeholder { color: #8a9694; opacity: 1; }
+  select:focus-visible, input:focus-visible, button:focus-visible {
+    outline: 3px solid var(--amber);
+    outline-offset: 1px;
+  }
+
+  button.go {
+    margin-top: 24px;
+    width: 100%;
+    min-height: 50px;
+    font: inherit;
+    font-weight: 600;
+    font-size: 1rem;
+    color: #fff;
+    background: var(--petrol);
+    border: 0;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button.go:hover { background: var(--petrol-hover); }
+  button.go:disabled { opacity: .6; cursor: wait; }
+
+  .error { color: var(--err); font-size: .9rem; margin: 14px 0 0; min-height: 1.2em; }
+
+  /* ---------- Result ---------- */
+  .result { position: sticky; top: 24px; }
+  .empty { color: var(--ink-soft); padding: 12px 0 4px; }
+  .empty strong { color: var(--ink); }
+
+  .reading { display: flex; align-items: baseline; gap: 10px; margin: 8px 0 4px; }
+  .reading .num {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: clamp(3.4rem, 8vw, 5rem);
+    line-height: 1;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+  }
+  .reading .unit { color: var(--ink-soft); font-weight: 500; }
+  .verdict { font-weight: 600; margin: 0 0 26px; }
+
+  .scale { position: relative; padding-top: 22px; }
+  .bands { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
+  .bands span { height: 16px; border-radius: 2px; }
+  .marker {
+    position: absolute; top: 0; left: 0;
+    width: 0; height: 0;
+    transform: translateX(-50%);
+    transition: left .6s cubic-bezier(.2,.8,.2,1);
+  }
+  .marker::before {
+    content: ""; position: absolute; left: -8px; top: 0;
+    border-left: 8px solid transparent; border-right: 8px solid transparent;
+    border-top: 12px solid var(--ink);
+  }
+  .ticks { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin-top: 6px;
+           font-size: .75rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .ticks span:first-child { text-align: left; }
+
+  .facts { margin: 26px 0 0; padding: 18px 0 0; border-top: 1px solid var(--line);
+           display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .facts dt { font-size: .8rem; color: var(--ink-soft); }
+  .facts dd { margin: 2px 0 0; font-weight: 600; }
+
+  footer { margin-top: 28px; color: var(--ink-soft); font-size: .85rem; }
+
+  @media (prefers-reduced-motion: reduce) { .marker { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>CO₂ Emission Estimator</h1>
+    <p>Enter a vehicle's specs and get its predicted carbon dioxide emissions in grams per kilometre.</p>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-labelledby="form-title">
+      <h2 id="form-title">Vehicle details</h2>
+      <p class="hint">Grey text shows an example. Pick a make and model to fill in typical specs, then adjust anything you like.</p>
+
+      <div class="fields">
+        <div>
+          <label for="Year">Year</label>
+          <input id="Year" type="number" step="1" placeholder="e.g. 2000">
+        </div>
+        <div>
+          <label for="MAKE">Make</label>
+          <select id="MAKE"></select>
+        </div>
+        <div class="full">
+          <label for="MODEL">Model</label>
+          <select id="MODEL" disabled></select>
+        </div>
+        <div class="full">
+          <label for="VEHICLE CLASS">Vehicle class</label>
+          <select id="VEHICLE CLASS"></select>
+        </div>
+        <div>
+          <label for="ENGINE SIZE">Engine size <small>(litres)</small></label>
+          <input id="ENGINE SIZE" type="number" step="0.1" min="0.5" max="10" placeholder="e.g. 3.2">
+        </div>
+        <div>
+          <label for="CYLINDERS">Cylinders</label>
+          <select id="CYLINDERS"></select>
+        </div>
+        <div>
+          <label for="TRANSMISSION">Transmission</label>
+          <select id="TRANSMISSION"></select>
+        </div>
+        <div>
+          <label for="FUEL">Fuel type</label>
+          <select id="FUEL"></select>
+        </div>
+        <div class="full">
+          <label for="FUEL CONSUMPTION">Fuel consumption <small>(litres per 100 km)</small></label>
+          <input id="FUEL CONSUMPTION" type="number" step="0.1" min="1" max="40" placeholder="e.g. 13.7">
+        </div>
+      </div>
+
+      <button class="go" id="go" type="button">Estimate emissions</button>
+      <p class="error" id="error" role="alert"></p>
+    </section>
+
+    <section class="card result" aria-live="polite" aria-labelledby="result-title">
+      <h2 id="result-title">Predicted emissions</h2>
+
+      <div id="empty" class="empty">
+        <p><strong>No estimate yet.</strong> Fill in the vehicle details and choose “Estimate emissions”.</p>
+      </div>
+
+      <div id="output" hidden>
+        <div class="reading">
+          <span class="num" id="num">0</span>
+          <span class="unit">g CO₂ / km</span>
+        </div>
+        <p class="verdict" id="verdict"></p>
+
+        <div class="scale">
+          <div class="marker" id="marker"></div>
+          <div class="bands" id="bands"></div>
+          <div class="ticks" id="ticks"></div>
+        </div>
+
+        <dl class="facts">
+          <div><dt>Over 1,000 km</dt><dd id="per1000"></dd></div>
+          <div><dt>Over 15,000 km a year</dt><dd id="peryear"></dd></div>
+        </dl>
+      </div>
+    </section>
+  </div>
+
+  <footer id="footer"></footer>
+</div>
+
+<script>
+  const FUEL_LABELS = {
+    X: "Regular gasoline", Z: "Premium gasoline", D: "Diesel",
+    E: "Ethanol (E85)", N: "Natural gas"
+  };
+  const FIELDS = ["Year", "MAKE", "MODEL", "VEHICLE CLASS", "ENGINE SIZE",
+                  "CYLINDERS", "TRANSMISSION", "FUEL", "FUEL CONSUMPTION"];
+
+  // Emission bands in g/km, lowest to highest
+  const EDGES  = [80, 150, 200, 250, 300, 350, 450];
+  const COLORS = ["#2f8f6b", "#7fae3e", "#e3b92b", "#e48a2a", "#d0532f", "#a02c2c"];
+  const NAMES  = ["Very low", "Low", "Moderate", "High", "Very high", "Extreme"];
+
+  const $ = id => document.getElementById(id);
+  let OPT = null;
+
+  function fill(select, items, labelFn, placeholder) {
+    select.innerHTML = "";
+    select.required = true;
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = placeholder || "Select";
+    ph.disabled = true;
+    ph.selected = true;
+    select.appendChild(ph);
+    items.forEach(v => {
+      const o = document.createElement("option");
+      o.value = v;
+      o.textContent = labelFn ? labelFn(v) : v;
+      select.appendChild(o);
+    });
+  }
+
+  function applyDefaults() {
+    if (!$("MODEL").value) return;
+    const d = OPT.defaults[$("MAKE").value + "||" + $("MODEL").value];
+    if (!d) return;
+    Object.keys(d).forEach(k => { $(k).value = d[k]; });
+  }
+
+  function onMakeChange() {
+    const models = OPT.models_by_make[$("MAKE").value] || [];
+    fill($("MODEL"), models, null, "Select a model, e.g. 3.2TL");
+    $("MODEL").disabled = models.length === 0;
+  }
+
+  function buildScale() {
+    $("bands").innerHTML = COLORS.map(c => `<span style="background:${c}"></span>`).join("");
+    $("ticks").innerHTML = EDGES.slice(0, 6).map(e => `<span>${e}</span>`).join("");
+  }
+
+  function bandIndex(v) {
+    for (let i = 0; i < 6; i++) if (v < EDGES[i + 1]) return i;
+    return 5;
+  }
+
+  function markerPercent(v) {
+    const c = Math.min(Math.max(v, EDGES[0]), EDGES[6] - 0.001);
+    const i = bandIndex(c);
+    const frac = (c - EDGES[i]) / (EDGES[i + 1] - EDGES[i]);
+    return ((i + frac) / 6) * 100;
+  }
+
+  function countUp(el, to) {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { el.textContent = to.toFixed(1); return; }
+    const start = performance.now(), dur = 600;
+    (function tick(now) {
+      const t = Math.min((now - start) / dur, 1);
+      el.textContent = (to * (1 - Math.pow(1 - t, 3))).toFixed(1);
+      if (t < 1) requestAnimationFrame(tick);
+    })(start);
+  }
+
+  function showResult(v) {
+    $("empty").hidden = true;
+    $("output").hidden = false;
+    countUp($("num"), v);
+    const i = bandIndex(v);
+    $("verdict").textContent = NAMES[i] + " emissions for a passenger vehicle";
+    $("verdict").style.color = COLORS[i];
+    $("marker").style.left = markerPercent(v) + "%";
+    $("per1000").textContent = (v).toFixed(0) + " kg CO₂";
+    $("peryear").textContent = (v * 15).toFixed(0) + " kg CO₂";
+  }
+
+  async function estimate() {
+    $("error").textContent = "";
+    const payload = {};
+    for (const f of FIELDS) payload[f] = $(f).value;
+
+    $("go").disabled = true;
+    $("go").textContent = "Estimating…";
+    try {
+      const res = await fetch("/predict", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Something went wrong.");
+      showResult(data.prediction);
+    } catch (e) {
+      $("error").textContent = e.message || "Could not reach the server. Check that it is running and try again.";
+    } finally {
+      $("go").disabled = false;
+      $("go").textContent = "Estimate emissions";
+    }
+  }
+
+  async function init() {
+    buildScale();
+    try {
+      OPT = await (await fetch("/api/options")).json();
+    } catch (e) {
+      $("error").textContent = "Could not load vehicle options. Check that the server is running.";
+      return;
+    }
+    $("Year").min = OPT.year_min;
+    fill($("MAKE"), OPT.makes, null, "Select a make, e.g. ACURA");
+    fill($("MODEL"), [], null, "Select a make first");
+    $("MODEL").disabled = true;
+    fill($("VEHICLE CLASS"), OPT.classes, null, "Select a class, e.g. MID-SIZE");
+    fill($("CYLINDERS"), OPT.cylinders, null, "e.g. 6");
+    fill($("TRANSMISSION"), OPT.transmissions, null, "Select, e.g. AS5");
+    fill($("FUEL"), OPT.fuels, c => FUEL_LABELS[c] ? `${FUEL_LABELS[c]} (${c})` : c,
+         "Select, e.g. Premium gasoline (Z)");
+
+    $("MAKE").addEventListener("change", onMakeChange);
+    $("MODEL").addEventListener("change", applyDefaults);
+    $("go").addEventListener("click", estimate);
+    document.querySelectorAll("input").forEach(el =>
+      el.addEventListener("keydown", e => { if (e.key === "Enter") estimate(); }));
+
+    if (OPT.metrics) {
+      $("footer").textContent =
+        `Linear regression model. On held-out test data: R² ${OPT.metrics.r2.toFixed(3)}, ` +
+        `average error ${OPT.metrics.mae.toFixed(1)} g/km.`;
+    }
+  }
+  init();
+</script>
+</body>
+</html>
